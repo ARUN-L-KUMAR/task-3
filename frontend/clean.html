@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Ticketing DApp</title>
+    <link rel="stylesheet" href="css/clean.css">
+    
+    <!-- Load ethers.js from local file with fallback to CDN -->
+    <script src="js/lib/ethers.min.js"></script>
+    <script>
+        // Fallback to CDN if local file fails
+        window.addEventListener('error', function(e) {
+            if (e.target.src && e.target.src.includes('ethers.min.js')) {
+                console.log('Local ethers.js failed to load, trying CDN...');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+                document.head.appendChild(script);
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <header>
+        <div class="app-title">Event Ticketing DApp</div>
+        <div class="wallet-section">
+            <button id="connect-wallet-btn">Connect Wallet</button>
+            <div id="wallet-info" class="wallet-info">
+                <div id="wallet-address" class="wallet-address"></div>
+                <div id="wallet-balance" class="wallet-balance"></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="connection-status"></div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="events">Events</button>
+            <button class="tab-btn" data-tab="my-tickets">My Tickets</button>
+            <button class="tab-btn" data-tab="create-event">Create Event</button>
+        </div>
+        
+        <!-- Events Tab -->
+        <div id="events" class="tab-content active">
+            <h2>Available Events</h2>
+            <div id="events-status" class="status status-info">
+                Connect your wallet to view events
+            </div>
+            <div id="events-list" class="card-container"></div>
+        </div>
+        
+        <!-- My Tickets Tab -->
+        <div id="my-tickets" class="tab-content">
+            <h2>My Tickets</h2>
+            <div id="tickets-status" class="status status-info">
+                Connect your wallet to view your tickets
+            </div>
+            <div id="tickets-list" class="card-container"></div>
+        </div>
+        
+        <!-- Create Event Tab -->
+        <div id="create-event" class="tab-content">
+            <h2>Create New Event</h2>
+            <div id="create-event-status" class="status status-info">
+                Connect your wallet to create events
+            </div>
+            <div class="card">
+                <form id="event-form">
+                    <div class="form-group">
+                        <label for="event-name">Event Name</label>
+                        <input type="text" id="event-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-description">Description</label>
+                        <textarea id="event-description" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-date">Date</label>
+                        <input type="datetime-local" id="event-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="event-price">Ticket Price (ETH)</label>
+                        <input type="number" id="event-price" step="0.001" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-tickets">Maximum Tickets</label>
+                        <input type="number" id="max-tickets" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-resell-price">Maximum Resell Price (ETH)</label>
+                        <input type="number" id="max-resell-price" step="0.001" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="transfer-locked">
+                            Lock Transfers (Prevent Reselling)
+                        </label>
+                    </div>
+                    <button type="submit" id="create-event-btn" disabled>Create Event</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Decentralized Event Ticketing DApp</p>
+    </footer>
+
+    <script>
+        // Global variables
+        let provider;
+        let signer;
+        let contract;
+        let userAddress;
+        let isConnecting = false;
+        
+        // Contract details
+        const contractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+        const contractABI = [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function balanceOf(address) view returns (uint256)",
+            "function tokenOfOwnerByIndex(address, uint256) view returns (uint256)",
+            "function ownerOf(uint256) view returns (address)",
+            "function events(uint256) view returns (tuple(uint256 eventId, string name, string description, uint256 date, uint256 price, uint256 maxTickets, uint256 ticketsSold, bool isActive, address organizer, uint256 maxResellPrice, bool transferLocked))",
+            "function tickets(uint256) view returns (tuple(uint256 tokenId, uint256 eventId, bool used, uint256 purchasePrice, uint256 purchaseTime))",
+            "function createEvent(string, string, uint256, uint256, uint256, uint256, bool) returns (uint256)",
+            "function mintTicket(uint256) payable returns (uint256)"
+        ];
+        
+        // DOM Elements
+        const connectWalletBtn = document.getElementById('connect-wallet-btn');
+        const walletInfo = document.getElementById('wallet-info');
+        const walletAddress = document.getElementById('wallet-address');
+        const walletBalance = document.getElementById('wallet-balance');
+        const connectionStatus = document.getElementById('connection-status');
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const eventsStatus = document.getElementById('events-status');
+        const eventsList = document.getElementById('events-list');
+        const ticketsStatus = document.getElementById('tickets-status');
+        const ticketsList = document.getElementById('tickets-list');
+        const createEventStatus = document.getElementById('create-event-status');
+        const eventForm = document.getElementById('event-form');
+        const createEventBtn = document.getElementById('create-event-btn');
+        
+        // Initialize the application
+        async function init() {
+            console.log('Initializing application...');
+            
+            // Check if ethers.js is loaded
+            if (typeof ethers === 'undefined') {
+                showStatus(connectionStatus, 'ethers.js library not loaded. Please refresh the page.', 'error');
+                return;
+            }
+            
+            // Check if MetaMask is installed
+            if (typeof window.ethereum !== 'undefined') {
+                console.log('MetaMask detected');
+                
+                // Set up event listeners
+                setupEventListeners();
+                
+                // Check if already connected
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    if (accounts.length > 0) {
+                        console.log('Already connected to account:', accounts[0]);
+                        connectWallet(false); // Connect without prompting
+                    }
+                } catch (error) {
+                    console.error('Error checking accounts:', error);
+                }
+                
+                // Listen for account changes
+                window.ethereum.on('accountsChanged', handleAccountsChanged);
+                window.ethereum.on('chainChanged', () => window.location.reload());
+            } else {
+                showStatus(connectionStatus, 'MetaMask not detected. Please install MetaMask to use this DApp.', 'error');
+                connectWalletBtn.disabled = true;
+            }
+        }
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            // Connect wallet button
+            connectWalletBtn.addEventListener('click', () => connectWallet(true));
+            
+            // Tab navigation
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Update active tab button
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    
+                    // Show selected tab content
+                    const tabId = button.getAttribute('data-tab');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // Event form
+            eventForm.addEventListener('submit', createEvent);
+        }
+        
+        // Connect wallet
+        async function connectWallet(withPrompt = true) {
+            // Prevent multiple connection attempts
+            if (isConnecting) {
+                console.log('Already connecting, please wait...');
+                return;
+            }
+            
+            isConnecting = true;
+            connectWalletBtn.disabled = true;
+            connectWalletBtn.textContent = 'Connecting...';
+            
+            try {
+                // Set up provider
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                
+                // Request accounts if needed
+                if (withPrompt) {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                }
+                
+                // Get signer and address
+                signer = provider.getSigner();
+                userAddress = await signer.getAddress();
+                
+                // Update UI
+                walletAddress.textContent = `${userAddress.substring(0, 6)}...${userAddress.substring(38)}`;
+                
+                // Get balance
+                const balance = await provider.getBalance(userAddress);
+                walletBalance.textContent = `${ethers.utils.formatEther(balance).substring(0, 6)} ETH`;
+                
+                // Show wallet info
+                connectWalletBtn.classList.add('hidden');
+                walletInfo.classList.add('active');
+                
+                // Initialize contract
+                contract = new ethers.Contract(contractAddress, contractABI, signer);
+                
+                // Show success message
+                showStatus(connectionStatus, 'Connected to wallet successfully!', 'success');
+                
+                // Enable create event button
+                createEventBtn.disabled = false;
+                
+                // Load data
+                loadEvents();
+                loadTickets();
+                
+                // Update status messages
+                eventsStatus.textContent = 'Loading events...';
+                ticketsStatus.textContent = 'Loading tickets...';
+                createEventStatus.textContent = 'You can now create events';
+            } catch (error) {
+                console.error('Error connecting wallet:', error);
+                showStatus(connectionStatus, `Error connecting wallet: ${error.message}`, 'error');
+                
+                // Reset UI
+                connectWalletBtn.textContent = 'Connect Wallet';
+            } finally {
+                isConnecting = false;
+                connectWalletBtn.disabled = false;
+            }
+        }
+        
+        // Handle account changes
+        function handleAccountsChanged(accounts) {
+            if (accounts.length === 0) {
+                // Disconnected
+                resetUI();
+                showStatus(connectionStatus, 'Disconnected from wallet', 'warning');
+            } else {
+                // Account changed, reload the page
+                window.location.reload();
+            }
+        }
+        
+        // Reset UI
+        function resetUI() {
+            // Reset wallet connection UI
+            connectWalletBtn.classList.remove('hidden');
+            connectWalletBtn.textContent = 'Connect Wallet';
+            walletInfo.classList.remove('active');
+            
+            // Reset data
+            eventsList.innerHTML = '';
+            ticketsList.innerHTML = '';
+            
+            // Reset status messages
+            eventsStatus.textContent = 'Connect your wallet to view events';
+            ticketsStatus.textContent = 'Connect your wallet to view your tickets';
+            createEventStatus.textContent = 'Connect your wallet to create events';
+            
+            // Disable create event button
+            createEventBtn.disabled = true;
+            
+            // Reset global variables
+            provider = null;
+            signer = null;
+            contract = null;
+            userAddress = null;
+        }
+        
+        // Show status message
+        function showStatus(element, message, type) {
+            element.textContent = message;
+            element.className = `status status-${type}`;
+            element.style.display = 'block';
+            
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 5000);
+            }
+        }
+        
+        // Load events
+        async function loadEvents() {
+            if (!contract) return;
+            
+            try {
+                eventsStatus.textContent = 'Loading events...';
+                
+                // Try to get events one by one until we get an error
+                let eventCount = 0;
+                let hasMoreEvents = true;
+                let eventsData = [];
+                
+                while (hasMoreEvents && eventCount < 10) { // Limit to 10 events for safety
+                    try {
+                        const event = await contract.events(eventCount);
+                        eventsData.push(event);
+                        eventCount++;
+                    } catch (error) {
+                        hasMoreEvents = false;
+                    }
+                }
+                
+                if (eventCount === 0) {
+                    eventsStatus.textContent = 'No events found';
+                    return;
+                }
+                
+                // Hide status message
+                eventsStatus.style.display = 'none';
+                
+                // Display events
+                let eventsHTML = '';
+                for (let i = 0; i < eventsData.length; i++) {
+                    const event = eventsData[i];
+                    const eventDate = new Date(Number(event.date) * 1000).toLocaleString();
+                    const price = ethers.utils.formatEther(event.price);
+                    const available = event.maxTickets - event.ticketsSold;
+                    
+                    eventsHTML += `
+                        <div class="card">
+                            <h3>${event.name}</h3>
+                            <p>${event.description}</p>
+                            <p><strong>Date:</strong> ${eventDate}</p>
+                            <p><strong>Price:</strong> ${price} ETH</p>
+                            <p><strong>Available:</strong> ${available} / ${event.maxTickets}</p>
+                            <button class="buy-ticket-btn" data-event-id="${event.eventId}" 
+                                ${available === 0 ? 'disabled' : ''}>
+                                ${available === 0 ? 'Sold Out' : 'Buy Ticket'}
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                eventsList.innerHTML = eventsHTML;
+                
+                // Add event listeners to buy buttons
+                document.querySelectorAll('.buy-ticket-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const eventId = button.getAttribute('data-event-id');
+                        buyTicket(eventId);
+                    });
+                });
+            } catch (error) {
+                console.error('Error loading events:', error);
+                showStatus(eventsStatus, `Error loading events: ${error.message}`, 'error');
+            }
+        }
+        
+        // Load tickets
+        async function loadTickets() {
+            if (!contract || !userAddress) return;
+            
+            try {
+                ticketsStatus.textContent = 'Loading tickets...';
+                
+                // Get balance
+                const balance = await contract.balanceOf(userAddress);
+                
+                if (balance == 0) {
+                    ticketsStatus.textContent = 'You don\'t have any tickets';
+                    return;
+                }
+                
+                // Hide status message
+                ticketsStatus.style.display = 'none';
+                
+                // Get tickets
+                let ticketsHTML = '';
+                for (let i = 0; i < balance; i++) {
+                    const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
+                    const ticket = await contract.tickets(tokenId);
+                    const event = await contract.events(ticket.eventId);
+                    
+                    const eventDate = new Date(Number(event.date) * 1000).toLocaleString();
+                    const purchaseDate = new Date(Number(ticket.purchaseTime) * 1000).toLocaleString();
+                    
+                    let status = 'Valid';
+                    let statusClass = 'status-success';
+                    
+                    if (ticket.used) {
+                        status = 'Used';
+                        statusClass = 'status-error';
+                    } else if (event.date * 1000 < Date.now()) {
+                        status = 'Expired';
+                        statusClass = 'status-warning';
+                    }
+                    
+                    ticketsHTML += `
+                        <div class="card">
+                            <h3>${event.name}</h3>
+                            <p><strong>Ticket ID:</strong> ${tokenId}</p>
+                            <p><strong>Event Date:</strong> ${eventDate}</p>
+                            <p><strong>Purchase Date:</strong> ${purchaseDate}</p>
+                            <p><strong>Status:</strong> <span class="${statusClass}">${status}</span></p>
+                        </div>
+                    `;
+                }
+                
+                ticketsList.innerHTML = ticketsHTML;
+            } catch (error) {
+                console.error('Error loading tickets:', error);
+                showStatus(ticketsStatus, `Error loading tickets: ${error.message}`, 'error');
+            }
+        }
+        
+        // Buy ticket
+        async function buyTicket(eventId) {
+            if (!contract) return;
+            
+            try {
+                // Get event details
+                const event = await contract.events(eventId);
+                const price = event.price;
+                
+                // Show confirmation
+                if (!confirm(`Are you sure you want to buy a ticket for "${event.name}" for ${ethers.utils.formatEther(price)} ETH?`)) {
+                    return;
+                }
+                
+                // Buy ticket
+                const tx = await contract.mintTicket(eventId, { value: price });
+                
+                showStatus(connectionStatus, 'Transaction sent! Waiting for confirmation...', 'info');
+                
+                // Wait for transaction to be mined
+                await tx.wait();
+                
+                showStatus(connectionStatus, 'Ticket purchased successfully!', 'success');
+                
+                // Reload data
+                loadEvents();
+                loadTickets();
+            } catch (error) {
+                console.error('Error buying ticket:', error);
+                showStatus(connectionStatus, `Error buying ticket: ${error.message}`, 'error');
+            }
+        }
+        
+        // Create event
+        async function createEvent(e) {
+            e.preventDefault();
+            
+            if (!contract) {
+                showStatus(createEventStatus, 'Please connect your wallet first', 'error');
+                return;
+            }
+            
+            try {
+                // Get form values
+                const name = document.getElementById('event-name').value;
+                const description = document.getElementById('event-description').value;
+                const dateInput = document.getElementById('event-date').value;
+                const price = ethers.utils.parseEther(document.getElementById('event-price').value);
+                const maxTickets = document.getElementById('max-tickets').value;
+                const maxResellPrice = ethers.utils.parseEther(document.getElementById('max-resell-price').value);
+                const transferLocked = document.getElementById('transfer-locked').checked;
+                
+                // Convert date to Unix timestamp
+                const date = Math.floor(new Date(dateInput).getTime() / 1000);
+                
+                // Disable form
+                createEventBtn.disabled = true;
+                createEventBtn.innerHTML = '<span class="spinner"></span> Creating...';
+                
+                // Create event
+                const tx = await contract.createEvent(
+                    name,
+                    description,
+                    date,
+                    price,
+                    maxTickets,
+                    maxResellPrice,
+                    transferLocked
+                );
+                
+                showStatus(createEventStatus, 'Transaction sent! Waiting for confirmation...', 'info');
+                
+                // Wait for transaction to be mined
+                await tx.wait();
+                
+                // Reset form
+                eventForm.reset();
+                
+                showStatus(createEventStatus, 'Event created successfully!', 'success');
+                
+                // Reload events
+                loadEvents();
+            } catch (error) {
+                console.error('Error creating event:', error);
+                showStatus(createEventStatus, `Error creating event: ${error.message}`, 'error');
+            } finally {
+                // Re-enable form
+                createEventBtn.disabled = false;
+                createEventBtn.textContent = 'Create Event';
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
