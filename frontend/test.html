@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMask Connection Test</title>
+    <!-- Use local copy of ethers.js -->
+    <script src="js/lib/ethers.min.js" type="application/javascript"></script>
+    <!-- Fallback to CDN if local copy fails -->
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.target.src && e.target.src.includes('ethers.min.js')) {
+                console.log('Local ethers.js failed to load, trying CDN...');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+                script.type = 'application/javascript';
+                document.head.appendChild(script);
+            }
+        }, true);
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>MetaMask Connection Test</h1>
+    <p>This page tests the basic functionality of connecting to MetaMask.</p>
+
+    <button id="connect-btn">Connect to MetaMask</button>
+
+    <div id="status" style="display: none;"></div>
+
+    <h2>Debug Information</h2>
+    <pre id="debug"></pre>
+
+    <script>
+        // DOM Elements
+        const connectBtn = document.getElementById('connect-btn');
+        const statusDiv = document.getElementById('status');
+        const debugPre = document.getElementById('debug');
+
+        // Log function
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugPre.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+
+        // Show status
+        function showStatus(message, isSuccess) {
+            statusDiv.textContent = message;
+            statusDiv.className = isSuccess ? 'success' : 'error';
+            statusDiv.style.display = 'block';
+        }
+
+        // Initialize
+        function init() {
+            log('Page loaded');
+
+            // Check if MetaMask is installed
+            if (typeof window.ethereum !== 'undefined') {
+                log('MetaMask is installed');
+
+                // Check if already connected
+                window.ethereum.request({ method: 'eth_accounts' })
+                    .then(accounts => {
+                        if (accounts.length > 0) {
+                            log(`Already connected to account: ${accounts[0]}`);
+                            showStatus(`Connected to account: ${accounts[0]}`, true);
+                        } else {
+                            log('Not connected to any account');
+                        }
+                    })
+                    .catch(error => {
+                        log(`Error checking accounts: ${error.message}`);
+                    });
+
+                // Set up event listeners
+                window.ethereum.on('accountsChanged', accounts => {
+                    log(`Accounts changed: ${accounts.join(', ')}`);
+                    if (accounts.length > 0) {
+                        showStatus(`Connected to account: ${accounts[0]}`, true);
+                    } else {
+                        showStatus('Disconnected from MetaMask', false);
+                    }
+                });
+
+                window.ethereum.on('chainChanged', chainId => {
+                    log(`Chain changed: ${chainId}`);
+                });
+
+                window.ethereum.on('connect', connectInfo => {
+                    log(`Connected to chain ID: ${connectInfo.chainId}`);
+                });
+
+                window.ethereum.on('disconnect', error => {
+                    log(`Disconnected: ${error.message}`);
+                    showStatus('Disconnected from MetaMask', false);
+                });
+            } else {
+                log('MetaMask is not installed');
+                showStatus('MetaMask is not installed. Please install MetaMask to use this page.', false);
+                connectBtn.disabled = true;
+            }
+        }
+
+        // Connect to MetaMask
+        async function connectToMetaMask() {
+            try {
+                log('Connecting to MetaMask...');
+
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                log(`Connected to accounts: ${accounts.join(', ')}`);
+
+                if (accounts.length > 0) {
+                    showStatus(`Connected to account: ${accounts[0]}`, true);
+
+                    // Get chain ID
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    log(`Chain ID: ${chainId}`);
+
+                    // Get balance
+                    const balance = await window.ethereum.request({
+                        method: 'eth_getBalance',
+                        params: [accounts[0], 'latest']
+                    });
+
+                    // Convert balance from wei to ether
+                    const etherValue = parseInt(balance, 16) / 1e18;
+                    log(`Balance: ${etherValue.toFixed(4)} ETH`);
+                }
+            } catch (error) {
+                log(`Error connecting to MetaMask: ${error.message}`);
+                showStatus(`Error: ${error.message}`, false);
+            }
+        }
+
+        // Event listeners
+        connectBtn.addEventListener('click', connectToMetaMask);
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "task-2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "create-event": "hardhat run scripts/create-event.js --network localhost",
+    "mint-ticket": "hardhat run scripts/mint-ticket.js --network localhost",
+    "verify-ticket": "hardhat run scripts/verify-ticket.js --network localhost",
+    "add-validator": "hardhat run scripts/add-validator.js --network localhost",
+    "toggle-lock": "hardhat run scripts/toggle-transfer-lock.js --network localhost",
+    "transfer-ticket": "hardhat run scripts/transfer-ticket.js --network localhost",
+    "check-contract": "hardhat run scripts/check-contract.js --network localhost",
+    "start": "http-server frontend -p 8080"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.3.0",
+    "hardhat": "^2.23.0",
+    "http-server": "^14.1.1"
+  }
+}

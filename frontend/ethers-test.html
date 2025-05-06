@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ethers.js Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ethers.js Test</h1>
+    <p>This page tests if ethers.js is loading correctly.</p>
+    
+    <div>
+        <h2>Load ethers.js</h2>
+        <button id="load-local">Load Local ethers.js</button>
+        <button id="load-cdn">Load CDN ethers.js</button>
+        <button id="check-ethers">Check if ethers.js is loaded</button>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <h2>Debug Information</h2>
+    <pre id="debug"></pre>
+    
+    <script>
+        // DOM Elements
+        const loadLocalBtn = document.getElementById('load-local');
+        const loadCdnBtn = document.getElementById('load-cdn');
+        const checkEthersBtn = document.getElementById('check-ethers');
+        const statusDiv = document.getElementById('status');
+        const debugPre = document.getElementById('debug');
+        
+        // Log function
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugPre.textContent += `[${timestamp}] ${message}\n`;
+            console.log(message);
+        }
+        
+        // Show status
+        function showStatus(message, isSuccess) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (isSuccess ? 'success' : 'error');
+            statusDiv.style.display = 'block';
+        }
+        
+        // Load local ethers.js
+        function loadLocalEthers() {
+            log('Loading local ethers.js...');
+            
+            try {
+                // Remove any existing ethers.js script
+                const existingScripts = document.querySelectorAll('script[src*="ethers"]');
+                existingScripts.forEach(script => script.remove());
+                
+                // Create new script element
+                const script = document.createElement('script');
+                script.src = 'js/lib/ethers.min.js';
+                script.type = 'application/javascript';
+                
+                // Add event listeners
+                script.onload = function() {
+                    log('Local ethers.js loaded successfully');
+                    showStatus('Local ethers.js loaded successfully', true);
+                    checkEthers();
+                };
+                
+                script.onerror = function() {
+                    log('Error loading local ethers.js');
+                    showStatus('Error loading local ethers.js', false);
+                };
+                
+                // Append to document
+                document.head.appendChild(script);
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                showStatus(`Error: ${error.message}`, false);
+            }
+        }
+        
+        // Load CDN ethers.js
+        function loadCdnEthers() {
+            log('Loading CDN ethers.js...');
+            
+            try {
+                // Remove any existing ethers.js script
+                const existingScripts = document.querySelectorAll('script[src*="ethers"]');
+                existingScripts.forEach(script => script.remove());
+                
+                // Create new script element
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js';
+                script.type = 'application/javascript';
+                
+                // Add event listeners
+                script.onload = function() {
+                    log('CDN ethers.js loaded successfully');
+                    showStatus('CDN ethers.js loaded successfully', true);
+                    checkEthers();
+                };
+                
+                script.onerror = function() {
+                    log('Error loading CDN ethers.js');
+                    showStatus('Error loading CDN ethers.js', false);
+                };
+                
+                // Append to document
+                document.head.appendChild(script);
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                showStatus(`Error: ${error.message}`, false);
+            }
+        }
+        
+        // Check if ethers.js is loaded
+        function checkEthers() {
+            log('Checking if ethers.js is loaded...');
+            
+            try {
+                if (typeof ethers !== 'undefined') {
+                    log(`ethers.js is loaded, version: ${ethers.version}`);
+                    showStatus(`ethers.js is loaded, version: ${ethers.version}`, true);
+                    
+                    // Try to create a provider
+                    try {
+                        const provider = ethers.getDefaultProvider();
+                        log('Successfully created a provider');
+                    } catch (providerError) {
+                        log(`Error creating provider: ${providerError.message}`);
+                    }
+                } else {
+                    log('ethers.js is not loaded');
+                    showStatus('ethers.js is not loaded', false);
+                }
+            } catch (error) {
+                log(`Error checking ethers.js: ${error.message}`);
+                showStatus(`Error checking ethers.js: ${error.message}`, false);
+            }
+        }
+        
+        // Event listeners
+        loadLocalBtn.addEventListener('click', loadLocalEthers);
+        loadCdnBtn.addEventListener('click', loadCdnEthers);
+        checkEthersBtn.addEventListener('click', checkEthers);
+        
+        // Check on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            log('Page loaded');
+            checkEthers();
+        });
+    </script>
+</body>
+</html>
