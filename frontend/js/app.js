@@ -385,8 +385,8 @@ function setupEventListeners() {
             console.log('Setting up close modal buttons');
             closeButtons.forEach(button => {
                 button.addEventListener('click', () => {
-                    eventModal.style.display = 'none';
-                    ticketModal.style.display = 'none';
+                    closeModal(eventModal);
+                    closeModal(ticketModal);
                 });
             });
         } else {
@@ -397,12 +397,31 @@ function setupEventListeners() {
         console.log('Setting up modal outside click handler');
         window.addEventListener('click', event => {
             if (event.target === eventModal) {
-                eventModal.style.display = 'none';
+                closeModal(eventModal);
             }
             if (event.target === ticketModal) {
-                ticketModal.style.display = 'none';
+                closeModal(ticketModal);
             }
         });
+
+        // Function to open modal with animation
+        function openModal(modal) {
+            modal.style.display = 'block';
+            // Trigger reflow to ensure transition works
+            modal.offsetHeight;
+            modal.classList.add('show');
+        }
+
+        // Function to close modal with animation
+        function closeModal(modal) {
+            modal.classList.remove('show');
+            // Wait for animation to complete before hiding
+            setTimeout(() => {
+                if (!modal.classList.contains('show')) {
+                    modal.style.display = 'none';
+                }
+            }, 300); // Match transition duration
+        }
 
         console.log('All event listeners set up successfully');
     } catch (error) {
@@ -664,7 +683,7 @@ async function showEventDetails(eventId) {
         purchaseStatus.classList.add('hidden');
 
         // Show modal
-        eventModal.style.display = 'block';
+        openModal(eventModal);
     } catch (error) {
         console.error('Error showing event details:', error);
     }
@@ -747,7 +766,7 @@ async function showTicketDetails(ticketId) {
         });
 
         // Show modal
-        ticketModal.style.display = 'block';
+        openModal(ticketModal);
     } catch (error) {
         console.error('Error showing ticket details:', error);
     }
