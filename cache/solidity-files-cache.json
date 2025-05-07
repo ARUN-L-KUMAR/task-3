@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "D:\\6th Sem\\CBT\\Tasks\\Task 2\\contracts\\EventTicket.sol": {
-      "lastModificationDate": 1746476527918,
-      "contentHash": "eb51b01b48ea0d760e8809cf9d36ef71",
+      "lastModificationDate": 1746599066218,
+      "contentHash": "2472f9f1fe6a4faf262b17b2bf0dfdbc",
       "sourceName": "contracts/EventTicket.sol",
       "solcConfig": {
         "version": "0.8.20",

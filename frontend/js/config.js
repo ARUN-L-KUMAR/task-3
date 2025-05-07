@@ -6,5 +6,5 @@ export const IPFS_CONFIG = {
 
 // Contract Configuration
 export const CONTRACT_CONFIG = {
-    address: import.meta.env.VITE_CONTRACT_ADDRESS || '0xA696cF49e9C355E098bED7B2d60F4F6E785A6857'
+    address: import.meta.env.VITE_CONTRACT_ADDRESS || '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0'
 };

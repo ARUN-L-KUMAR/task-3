@@ -142,6 +142,13 @@ contract EventTicket is ERC721Enumerable, Ownable {
     }
 
     /**
+     * @dev Getter for eventIdCounter
+     */
+    function eventIdCounter() public view returns (uint256) {
+        return _eventIdCounter;
+    }
+
+    /**
      * @dev Override transfer function to implement anti-scalping measures
      */
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
